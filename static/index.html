@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIZAG SAFETY INTELLIGENCE — Compound Risk Engine</title>
+<style>
+  :root {
+    --bg: #0a0f1c;
+    --panel: #1a2332;
+    --panel-alt: #0f1825;
+    --accent: #00d4ff;
+    --critical: #ff4444;
+    --warning: #ffaa00;
+    --normal: #00ff88;
+    --text: #c8d8e8;
+    --text-dim: #6a8aaa;
+    --border: #1e3050;
+    --border-accent: rgba(0, 212, 255, 0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', 'Consolas', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── TOP HEADER ─── */
+  .top-header {
+    background: linear-gradient(90deg, #0a0f1c 0%, #0d1520 50%, #0a0f1c 100%);
+    border-bottom: 1px solid var(--accent);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(0,212,255,0.2);
+  }
+
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .header-logo {
+    width: 36px;
+    height: 36px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--accent);
+    animation: logoSpin 8s linear infinite;
+  }
+
+  @keyframes logoSpin {
+    0%   { box-shadow: 0 0 8px var(--accent); }
+    50%  { box-shadow: 0 0 20px var(--accent), 0 0 40px rgba(0,212,255,0.3); }
+    100% { box-shadow: 0 0 8px var(--accent); }
+  }
+
+  .header-text h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .header-text p {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .ws-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .ws-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--normal);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  .ws-dot.disconnected { background: var(--critical); animation: none; }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .header-time {
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  /* ─── ALERT BANNER ─── */
+  .alert-banner {
+    background: linear-gradient(90deg, var(--critical) 0%, #cc0000 50%, var(--critical) 100%);
+    color: white;
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    display: none;
+    animation: alertPulse 0.5s ease-in-out infinite;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+
+  .alert-banner.active { display: block; }
+
+  @keyframes alertPulse {
+    0%, 100% { background: linear-gradient(90deg, #ff4444 0%, #cc0000 50%, #ff4444 100%); }
+    50%       { background: linear-gradient(90deg, #cc0000 0%, #ff4444 50%, #cc0000 100%); }
+  }
+
+  /* ─── MAIN GRID ─── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr 380px;
+    gap: 12px;
+    padding: 12px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── PANEL BASE ─── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-alt);
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .panel-subtitle {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .panel-body {
+    padding: 12px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-track { background: var(--panel-alt); }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 2px; }
+
+  /* ─── LEFT PANEL — TRADITIONAL ─── */
+  .left-panel .panel-title { color: var(--warning); }
+
+  .trad-label {
+    display: inline-block;
+    background: rgba(255, 170, 0, 0.1);
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    color: var(--warning);
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* Sensor Gauge */
+  .sensor-gauge {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+  }
+
+  .sensor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .sensor-name {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .sensor-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--normal);
+    transition: color 0.3s;
+  }
+
+  .sensor-value.warn  { color: var(--warning); }
+  .sensor-value.crit  { color: var(--critical); }
+
+  .sensor-unit {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: 3px;
+  }
+
+  .gauge-bar-wrap {
+    position: relative;
+    height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    overflow: visible;
+  }
+
+  .gauge-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease, background 0.3s;
+    background: var(--normal);
+  }
+
+  .gauge-bar.warn { background: var(--warning); }
+  .gauge-bar.crit { background: var(--critical); }
+
+  .threshold-line {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 14px;
+    background: rgba(255,68,68,0.8);
+    border-radius: 1px;
+  }
+
+  .threshold-label {
+    position: absolute;
+    top: -14px;
+    font-size: 8px;
+    color: rgba(255,68,68,0.7);
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+
+  /* Traditional Alarm Box */
+  .trad-alarm {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .trad-alarm.no-alarm {
+    border-color: rgba(0,255,136,0.3);
+  }
+
+  .trad-alarm.alarm-active {
+    border-color: var(--critical);
+    background: rgba(255,68,68,0.1);
+    animation: alarmFlash 1s ease-in-out infinite;
+  }
+
+  @keyframes alarmFlash {
+    0%, 100% { box-shadow: 0 0 0px rgba(255,68,68,0); }
+    50%       { box-shadow: 0 0 15px rgba(255,68,68,0.4); }
+  }
+
+  .trad-alarm-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .trad-alarm-msg {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--normal);
+  }
+
+  .trad-alarm-msg.alert-msg { color: var(--critical); }
+
+  .trad-note {
+    text-align: center;
+    font-size: 9px;
+    color: rgba(255,68,68,0.6);
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+
+  /* ─── CONTRAST BOX (money shot) ─── */
+  .contrast-box {
+    display: none;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .contrast-box.visible { display: block; }
+
+  .contrast-row {
+    display: flex;
+  }
+
+  .contrast-half {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .contrast-half.trad-side {
+    background: rgba(0,0,0,0.4);
+    border-right: 1px solid var(--border);
+  }
+
+  .contrast-half.ai-side {
+    background: rgba(255,68,68,0.1);
+    animation: aiGlow 1s ease-in-out infinite;
+  }
+
+  @keyframes aiGlow {
+    0%, 100% { background: rgba(255,68,68,0.08); }
+    50%       { background: rgba(255,68,68,0.2); }
+  }
+
+  .contrast-system {
+    font-size: 8px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .contrast-verdict {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .contrast-verdict.no   { color: #666; }
+  .contrast-verdict.yes  { color: var(--critical); }
+
+  .contrast-early {
+    display: none;
+    text-align: center;
+    background: rgba(255,68,68,0.15);
+    border-top: 1px solid rgba(255,68,68,0.3);
+    padding: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--critical);
+    letter-spacing: 2px;
+    animation: earlyBlink 0.8s ease-in-out infinite;
+  }
+
+  .contrast-early.visible { display: block; }
+
+  @keyframes earlyBlink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  /* ─── CENTER PANEL — HEATMAP ─── */
+  .center-panel .panel-title { color: var(--accent); }
+
+  .plant-svg-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    min-height: 0;
+  }
+
+  .plant-svg-wrap svg {
+    width: 100%;
+    height: 100%;
+    max-height: 380px;
+  }
+
+  .zone-rect {
+    rx: 6;
+    ry: 6;
+    transition: fill 0.8s ease, opacity 0.3s;
+    cursor: pointer;
+  }
+
+  .zone-rect:hover { opacity: 0.8; }
+
+  .zone-label {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    fill: white;
+    pointer-events: none;
+  }
+
+  .zone-sublabel {
+    font-family: 'Courier New', monospace;
+    font-size: 8px;
+    fill: rgba(255,255,255,0.7);
+    pointer-events: none;
+  }
+
+  .zone-count {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    fill: rgba(255,255,255,0.9);
+    pointer-events: none;
+  }
+
+  .permit-badge {
+    font-family: 'Courier New', monospace;
+    font-size: 7px;
+    fill: #ffaa00;
+  }
+
+  @keyframes zonePulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+  }
+
+  .zone-c-pulse {
+    animation: zonePulse 0.8s ease-in-out infinite;
+  }
+
+  /* ─── TIMELINE BAR ─── */
+  .timeline-wrap {
+    padding: 8px 12px;
+    flex-shrink: 0;
+    background: var(--panel-alt);
+    border-top: 1px solid var(--border);
+  }
+
+  .timeline-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .timeline-bar {
+    position: relative;
+    height: 22px;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+  }
+
+  .tl-seg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: white;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px;
+  }
+
+  .tl-normal   { background: rgba(0,255,136,0.5); flex: 26; }
+  .tl-compound { background: rgba(255,170,0,0.7); flex: 17; }
+  .tl-trad     { background: rgba(255,100,0,0.7); flex: 30; }
+  .tl-blast    { background: rgba(255,68,68,0.9); flex: 7; }
+
+  .timeline-marker {
+    position: absolute;
+    top: -2px;
+    width: 3px;
+    height: 26px;
+    background: white;
+    border-radius: 1px;
+    box-shadow: 0 0 8px white;
+    transition: left 1s ease;
+    z-index: 10;
+  }
+
+  .tl-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 8px;
+    color: var(--text-dim);
+  }
+
+  /* ─── LEGEND ─── */
+  .map-legend {
+    display: flex;
+    gap: 10px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--panel-alt);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* ─── RIGHT PANEL — COMPOUND RISK ─── */
+  .right-panel {
+    transition: box-shadow 0.5s;
+  }
+
+  .right-panel.critical-glow {
+    box-shadow: 0 0 0 2px var(--critical),
+                0 0 30px rgba(255,68,68,0.4),
+                0 0 60px rgba(255,68,68,0.15);
+    animation: rightPanelPulse 1s ease-in-out infinite;
+  }
+
+  @keyframes rightPanelPulse {
+    0%, 100% { box-shadow: 0 0 0 2px var(--critical), 0 0 30px rgba(255,68,68,0.4); }
+    50%       { box-shadow: 0 0 0 2px var(--critical), 0 0 50px rgba(255,68,68,0.6), 0 0 80px rgba(255,68,68,0.2); }
+  }
+
+  .right-panel .panel-title { color: var(--critical); }
+
+  .risk-subtitle { color: var(--accent); }
+
+  /* Risk Score Gauge */
+  .risk-gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0 6px;
+    flex-shrink: 0;
+  }
+
+  .risk-arc-container {
+    position: relative;
+    width: 160px;
+    height: 90px;
+  }
+
+  .risk-arc-container svg {
+    width: 160px;
+    height: 90px;
+    overflow: visible;
+  }
+
+  .risk-score-text {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+
+  .risk-score-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--normal);
+    transition: color 0.5s;
+    line-height: 1;
+  }
+
+  .risk-score-pct {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .risk-badge {
+    display: inline-block;
+    padding: 3px 14px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-top: 6px;
+    background: rgba(0,255,136,0.15);
+    border: 1px solid var(--normal);
+    color: var(--normal);
+    transition: all 0.3s;
+  }
+
+  .risk-badge.elevated { background: rgba(255,170,0,0.15); border-color: var(--warning); color: var(--warning); }
+  .risk-badge.high     { background: rgba(255,100,0,0.15); border-color: #ff6600; color: #ff6600; }
+  .risk-badge.critical { background: rgba(255,68,68,0.15); border-color: var(--critical); color: var(--critical); animation: badgePulse 0.8s ease-in-out infinite; }
+
+  @keyframes badgePulse {
+    0%, 100% { box-shadow: 0 0 0px rgba(255,68,68,0); }
+    50%       { box-shadow: 0 0 12px rgba(255,68,68,0.5); }
+  }
+
+  /* Triggered Rules */
+  .section-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .rule-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 9px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    margin-bottom: 5px;
+    transition: all 0.3s;
+  }
+
+  .rule-item.active-rule {
+    border-color: rgba(255,68,68,0.4);
+    background: rgba(255,68,68,0.05);
+  }
+
+  .rule-sev {
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-top: 1px;
+  }
+
+  .rule-sev.sev-critical { background: var(--critical); color: white; }
+  .rule-sev.sev-high     { background: #ff6600; color: white; }
+  .rule-sev.sev-medium   { background: var(--warning); color: #0a0f1c; }
+
+  .rule-text {
+    font-size: 10px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+
+  .rule-text .rule-code {
+    color: var(--accent);
+    font-size: 8px;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* Why This Matters box */
+  .why-box {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 10px;
+    line-height: 1.6;
+    flex-shrink: 0;
+  }
+
+  .why-box.critical-box {
+    border-color: rgba(255,68,68,0.4);
+    background: rgba(10,5,5,0.8);
+  }
+
+  .why-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--warning);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .why-detail {
+    color: var(--text);
+  }
+
+  .why-value { color: var(--warning); font-weight: 700; }
+  .why-permit { color: var(--accent); }
+  .why-sep { border-top: 1px solid var(--border); margin: 7px 0; }
+
+  .why-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .compare-cell {
+    padding: 6px;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  .compare-cell.bad  { background: rgba(0,0,0,0.4); border: 1px solid rgba(80,80,80,0.4); }
+  .compare-cell.good { background: rgba(255,68,68,0.1); border: 1px solid rgba(255,68,68,0.4); }
+
+  .compare-cell .cv-sys { font-size: 8px; color: var(--text-dim); margin-bottom: 4px; }
+  .compare-cell .cv-res { font-size: 12px; font-weight: 700; }
+  .compare-cell.bad  .cv-res { color: #555; }
+  .compare-cell.good .cv-res { color: var(--critical); }
+
+  /* OISD Citation */
+  .oisd-box {
+    background: rgba(0,212,255,0.05);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 6px;
+    padding: 10px;
+    flex-shrink: 0;
+  }
+
+  .oisd-label {
+    font-size: 8px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .oisd-text {
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  .oisd-ref {
+    font-size: 8px;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+
+  /* RAG Query Box */
+  .rag-box {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    flex-shrink: 0;
+  }
+
+  .rag-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+  }
+
+  .rag-input-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .rag-input {
+    flex: 1;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 6px 9px;
+    font-size: 10px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .rag-input:focus { border-color: var(--accent); }
+
+  .rag-btn {
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.4);
+    border-radius: 4px;
+    color: var(--accent);
+    padding: 6px 12px;
+    font-size: 10px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .rag-btn:hover { background: rgba(0,212,255,0.2); }
+
+  .rag-answer {
+    margin-top: 8px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 9px;
+    color: var(--text);
+    line-height: 1.5;
+    display: none;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .rag-answer.visible { display: block; }
+
+  .rag-loading {
+    color: var(--accent);
+    animation: dots 1.2s steps(3) infinite;
+  }
+
+  @keyframes dots {
+    0%   { content: 'Querying'; }
+    33%  { content: 'Querying.'; }
+    66%  { content: 'Querying..'; }
+    100% { content: 'Querying...'; }
+  }
+
+  /* ─── BOTTOM BAR ─── */
+  .bottom-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--panel-alt);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .play-btn {
+    padding: 8px 20px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+
+  .btn-normal {
+    background: rgba(0,255,136,0.1);
+    border-color: rgba(0,255,136,0.4);
+    color: var(--normal);
+  }
+
+  .btn-normal:hover { background: rgba(0,255,136,0.2); box-shadow: 0 0 12px rgba(0,255,136,0.2); }
+
+  .btn-vizag {
+    background: rgba(255,68,68,0.1);
+    border-color: rgba(255,68,68,0.4);
+    color: var(--critical);
+  }
+
+  .btn-vizag:hover { background: rgba(255,68,68,0.2); box-shadow: 0 0 12px rgba(255,68,68,0.2); }
+
+  .mode-indicator {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .mode-text {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .bottom-right {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  /* ─── SCROLLBAR GLOBAL ─── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ─── PLANT MAP SPECIFIC ─── */
+  .plant-grid-line { stroke: rgba(0,212,255,0.1); stroke-width: 0.5; }
+
+  .zone-indicator {
+    fill: none;
+    stroke-width: 1.5;
+    rx: 4;
+    ry: 4;
+  }
+
+  .compass-text {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    fill: rgba(0,212,255,0.4);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel { animation: fadeIn 0.4s ease both; }
+  .left-panel  { animation-delay: 0.05s; }
+  .center-panel { animation-delay: 0.1s; }
+  .right-panel { animation-delay: 0.15s; }
+
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,212,255,0.3), transparent);
+    animation: scanDown 4s linear infinite;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  @keyframes scanDown {
+    0%   { top: 0; opacity: 0; }
+    5%   { opacity: 1; }
+    95%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP HEADER -->
+<div class="top-header">
+  <div class="header-title">
+    <div class="header-logo">⬡</div>
+    <div class="header-text">
+      <h1>VIZAG SAFETY INTELLIGENCE</h1>
+      <p>COMPOUND RISK ENGINE v2.1 · INDUSTRIAL SAFETY AI PROTOTYPE · OISD COMPLIANT</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="ws-status">
+      <div class="ws-dot" id="wsDot"></div>
+      <span id="wsLabel">CONNECTING...</span>
+    </div>
+    <div class="header-time" id="headerTime">--:--:--</div>
+  </div>
+</div>
+
+<!-- ALERT BANNER -->
+<div class="alert-banner" id="alertBanner">
+  ⚠ COMPOUND RISK CRITICAL — COKE OVEN BATTERY ZONE C — IMMEDIATE INTERVENTION REQUIRED ⚠
+</div>
+
+<!-- MAIN GRID -->
+<div class="main-grid">
+
+  <!-- LEFT: TRADITIONAL -->
+  <div class="panel left-panel">
+    <div class="scan-line"></div>
+    <div class="panel-header">
+      <div class="panel-title">SINGLE-SENSOR MONITORING</div>
+      <div class="panel-subtitle">INDUSTRY STANDARD</div>
+      <span class="trad-label">TRADITIONAL</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- H2S -->
+      <div class="sensor-gauge">
+        <div class="sensor-header">
+          <span class="sensor-name">H₂S (Hydrogen Sulfide)</span>
+          <span>
+            <span class="sensor-value" id="h2s-val">12.3</span>
+            <span class="sensor-unit">ppm</span>
+          </span>
+        </div>
+        <div class="gauge-bar-wrap">
+          <span class="threshold-label" style="left:62.5%">ALARM: 50ppm</span>
+          <div class="gauge-bar" id="h2s-bar" style="width:24.6%"></div>
+          <div class="threshold-line" style="left:62.5%"></div>
+        </div>
+      </div>
+
+      <!-- CO -->
+      <div class="sensor-gauge">
+        <div class="sensor-header">
+          <span class="sensor-name">CO (Carbon Monoxide)</span>
+          <span>
+            <span class="sensor-value" id="co-val">18.7</span>
+            <span class="sensor-unit">ppm</span>
+          </span>
+        </div>
+        <div class="gauge-bar-wrap">
+          <span class="threshold-label" style="left:50%">ALARM: 50ppm</span>
+          <div class="gauge-bar" id="co-bar" style="width:37.4%"></div>
+          <div class="threshold-line" style="left:50%"></div>
+        </div>
+      </div>
+
+      <!-- Pressure -->
+      <div class="sensor-gauge">
+        <div class="sensor-header">
+          <span class="sensor-name">Pressure</span>
+          <span>
+            <span class="sensor-value" id="press-val">102.4</span>
+            <span class="sensor-unit">kPa</span>
+          </span>
+        </div>
+        <div class="gauge-bar-wrap">
+          <span class="threshold-label" style="left:68%">ALARM: 110kPa</span>
+          <div class="gauge-bar" id="press-bar" style="width:46.5%"></div>
+          <div class="threshold-line" style="left:68%"></div>
+        </div>
+      </div>
+
+      <!-- Temperature -->
+      <div class="sensor-gauge">
+        <div class="sensor-header">
+          <span class="sensor-name">Temperature</span>
+          <span>
+            <span class="sensor-value" id="temp-val">68.2</span>
+            <span class="sensor-unit">°C</span>
+          </span>
+        </div>
+        <div class="gauge-bar-wrap">
+          <span class="threshold-label" style="left:75%">ALARM: 90°C</span>
+          <div class="gauge-bar" id="temp-bar" style="width:75.8%"></div>
+          <div class="threshold-line" style="left:75%"></div>
+        </div>
+      </div>
+
+      <!-- Vibration -->
+      <div class="sensor-gauge">
+        <div class="sensor-header">
+          <span class="sensor-name">Vibration</span>
+          <span>
+            <span class="sensor-value" id="vib-val">0.42</span>
+            <span class="sensor-unit">m/s²</span>
+          </span>
+        </div>
+        <div class="gauge-bar-wrap">
+          <span class="threshold-label" style="left:80%">ALARM: 2.0</span>
+          <div class="gauge-bar" id="vib-bar" style="width:21%"></div>
+          <div class="threshold-line" style="left:80%"></div>
+        </div>
+      </div>
+
+      <!-- Traditional Alarm -->
+      <div class="trad-alarm no-alarm" id="tradAlarm">
+        <div class="trad-alarm-label">SINGLE-SENSOR ALARM STATUS</div>
+        <div class="trad-alarm-msg" id="tradAlarmMsg">✓ No Alarm</div>
+      </div>
+
+      <!-- Contrast Box (appears on CRITICAL) -->
+      <div class="contrast-box" id="contrastBox">
+        <div class="contrast-row">
+          <div class="contrast-half trad-side">
+            <div class="contrast-system">TRADITIONAL</div>
+            <div class="contrast-verdict no" id="cvTrad">✗ NO ALARM</div>
+          </div>
+          <div class="contrast-half ai-side">
+            <div class="contrast-system">COMPOUND AI</div>
+            <div class="contrast-verdict yes" id="cvAI">✓ CRITICAL</div>
+          </div>
+        </div>
+        <div class="contrast-early visible" id="earlyWarning">
+          ⚡ 47 MINUTES EARLY ⚡
+        </div>
+      </div>
+
+      <div class="trad-note" id="tradNote">
+        ⚠ Single-sensor fires alarm at T-30 min before explosion
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CENTER: HEATMAP -->
+  <div class="panel center-panel" style="display:flex;flex-direction:column;">
+    <div class="panel-header">
+      <div class="panel-title">VIZAG STEEL PLANT — ZONE INTELLIGENCE</div>
+      <div class="panel-subtitle">LIVE SENSOR FUSION · 6 MONITORED ZONES · OISD-116 COMPLIANT</div>
+    </div>
+
+    <div class="plant-svg-wrap">
+      <svg viewBox="0 0 560 380" xmlns="http://www.w3.org/2000/svg" id="plantSvg">
+        <!-- Grid lines -->
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,212,255,0.06)" stroke-width="0.5"/>
+          </pattern>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="redGlow">
+            <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Background -->
+        <rect width="560" height="380" fill="#060c18" rx="4"/>
+        <rect width="560" height="380" fill="url(#grid)" rx="4"/>
+
+        <!-- Plant boundary -->
+        <rect x="20" y="20" width="520" height="340" fill="none" stroke="rgba(0,212,255,0.2)" stroke-width="1.5" rx="4" stroke-dasharray="8,4"/>
+
+        <!-- Plant name label -->
+        <text x="280" y="14" text-anchor="middle" font-family="Courier New" font-size="9" fill="rgba(0,212,255,0.5)" letter-spacing="3">VIZAG STEEL — BLAST FURNACE COMPLEX</text>
+
+        <!-- ZONE A: Blast Furnace -->
+        <rect id="zoneA" x="30" y="30" width="130" height="120" fill="rgba(0,255,136,0.15)" stroke="rgba(0,255,136,0.5)" stroke-width="1.5" rx="5"/>
+        <text x="95" y="78" text-anchor="middle" font-family="Courier New" font-size="13" font-weight="bold" fill="white">A</text>
+        <text x="95" y="93" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.7)">BLAST FURNACE</text>
+        <text x="95" y="105" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(0,255,136,0.9)">👷 14 workers</text>
+        <text x="95" y="120" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,255,136,0.6)" id="zoneA-status">◉ NORMAL</text>
+
+        <!-- ZONE B: Steel Melting -->
+        <rect id="zoneB" x="175" y="30" width="130" height="120" fill="rgba(0,255,136,0.15)" stroke="rgba(0,255,136,0.5)" stroke-width="1.5" rx="5"/>
+        <text x="240" y="78" text-anchor="middle" font-family="Courier New" font-size="13" font-weight="bold" fill="white">B</text>
+        <text x="240" y="93" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.7)">STEEL MELTING</text>
+        <text x="240" y="105" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(0,255,136,0.9)">👷 8 workers</text>
+        <text x="240" y="120" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,255,136,0.6)" id="zoneB-status">◉ NORMAL</text>
+
+        <!-- ZONE C: Coke Oven Battery — INCIDENT ZONE -->
+        <rect id="zoneC" x="320" y="30" width="215" height="150" fill="rgba(255,68,68,0.25)" stroke="rgba(255,68,68,0.8)" stroke-width="2" rx="5" filter="url(#redGlow)"/>
+        <text x="427" y="82" text-anchor="middle" font-family="Courier New" font-size="14" font-weight="bold" fill="white">C</text>
+        <text x="427" y="98" text-anchor="middle" font-family="Courier New" font-size="9" font-weight="bold" fill="rgba(255,170,0,0.9)">COKE OVEN BATTERY</text>
+        <text x="427" y="112" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,68,68,0.9)">⚠ INCIDENT ZONE</text>
+        <text x="427" y="126" text-anchor="middle" font-family="Courier New" font-size="8" fill="#ffaa00">👷 23 workers</text>
+        <text x="427" y="140" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,212,255,0.8)">📋 PTW-2025-0847 ACTIVE</text>
+        <text x="427" y="153" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,212,255,0.7)">📋 CONFINED SPACE</text>
+        <text x="427" y="164" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(255,68,68,0.9)" id="zoneC-status">⚡ COMPOUND RISK: HIGH</text>
+
+        <!-- ZONE D: Rolling Mill -->
+        <rect id="zoneD" x="30" y="170" width="130" height="110" fill="rgba(0,255,136,0.15)" stroke="rgba(0,255,136,0.5)" stroke-width="1.5" rx="5"/>
+        <text x="95" y="217" text-anchor="middle" font-family="Courier New" font-size="13" font-weight="bold" fill="white">D</text>
+        <text x="95" y="232" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.7)">ROLLING MILL</text>
+        <text x="95" y="247" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(0,255,136,0.9)">👷 11 workers</text>
+        <text x="95" y="262" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,255,136,0.6)" id="zoneD-status">◉ NORMAL</text>
+
+        <!-- ZONE E: Power Plant -->
+        <rect id="zoneE" x="175" y="170" width="130" height="110" fill="rgba(255,170,0,0.12)" stroke="rgba(255,170,0,0.5)" stroke-width="1.5" rx="5"/>
+        <text x="240" y="217" text-anchor="middle" font-family="Courier New" font-size="13" font-weight="bold" fill="white">E</text>
+        <text x="240" y="232" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.7)">POWER PLANT</text>
+        <text x="240" y="247" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,170,0,0.9)">👷 6 workers</text>
+        <text x="240" y="262" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(255,170,0,0.7)" id="zoneE-status">◈ ELEVATED</text>
+
+        <!-- ZONE F: Gas Recovery -->
+        <rect id="zoneF" x="320" y="200" width="215" height="80" fill="rgba(0,255,136,0.15)" stroke="rgba(0,255,136,0.5)" stroke-width="1.5" rx="5"/>
+        <text x="427" y="232" text-anchor="middle" font-family="Courier New" font-size="13" font-weight="bold" fill="white">F</text>
+        <text x="427" y="248" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.7)">GAS RECOVERY</text>
+        <text x="427" y="263" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(0,255,136,0.9)">👷 4 workers</text>
+        <text x="427" y="276" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,255,136,0.6)" id="zoneF-status">◉ NORMAL</text>
+
+        <!-- Roads/connections -->
+        <line x1="160" y1="85" x2="175" y2="85" stroke="rgba(0,212,255,0.2)" stroke-width="2"/>
+        <line x1="305" y1="85" x2="320" y2="85" stroke="rgba(255,68,68,0.4)" stroke-width="2"/>
+        <line x1="95" y1="150" x2="95" y2="170" stroke="rgba(0,212,255,0.2)" stroke-width="2"/>
+        <line x1="240" y1="150" x2="240" y2="170" stroke="rgba(0,212,255,0.2)" stroke-width="2"/>
+        <line x1="160" y1="225" x2="175" y2="225" stroke="rgba(0,212,255,0.2)" stroke-width="2"/>
+
+        <!-- Sensor nodes on Zone C -->
+        <circle cx="340" cy="50" r="5" fill="rgba(255,68,68,0.8)" stroke="rgba(255,68,68,1)" stroke-width="1">
+          <animate attributeName="r" values="5;8;5" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;0.5;1" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="380" cy="50" r="5" fill="rgba(255,170,0,0.8)" stroke="rgba(255,170,0,1)" stroke-width="1">
+          <animate attributeName="r" values="5;7;5" dur="1.3s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;0.5;1" dur="1.3s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="420" cy="50" r="5" fill="rgba(255,170,0,0.8)" stroke="rgba(255,170,0,1)" stroke-width="1">
+          <animate attributeName="r" values="5;7;5" dur="1.6s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;0.5;1" dur="1.6s" repeatCount="indefinite"/>
+        </circle>
+
+        <!-- Sensor node labels -->
+        <text x="340" y="45" text-anchor="middle" font-family="Courier New" font-size="6" fill="rgba(255,68,68,0.8)">H₂S</text>
+        <text x="380" y="45" text-anchor="middle" font-family="Courier New" font-size="6" fill="rgba(255,170,0,0.8)">CO</text>
+        <text x="420" y="45" text-anchor="middle" font-family="Courier New" font-size="6" fill="rgba(255,170,0,0.8)">TEMP</text>
+
+        <!-- Bottom strip: process flow -->
+        <rect x="30" y="300" width="500" height="52" fill="rgba(0,212,255,0.04)" stroke="rgba(0,212,255,0.1)" stroke-width="1" rx="4"/>
+        <text x="280" y="317" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(0,212,255,0.5)" letter-spacing="2">PROCESS FLOW — MATERIAL TRANSPORT CORRIDOR</text>
+        <line x1="40" y1="330" x2="520" y2="330" stroke="rgba(0,212,255,0.2)" stroke-width="1.5" stroke-dasharray="6,3"/>
+        <!-- Flow arrows -->
+        <polygon points="100,326 110,330 100,334" fill="rgba(0,212,255,0.3)"/>
+        <polygon points="200,326 210,330 200,334" fill="rgba(0,212,255,0.3)"/>
+        <polygon points="300,326 310,330 300,334" fill="rgba(0,212,255,0.3)"/>
+        <polygon points="400,326 410,330 400,334" fill="rgba(0,212,255,0.3)"/>
+        <polygon points="500,326 510,330 500,334" fill="rgba(0,212,255,0.3)"/>
+        <text x="280" y="344" text-anchor="middle" font-family="Courier New" font-size="7" fill="rgba(0,212,255,0.35)">COKE → SINTER → BLAST FURNACE → STEEL MELTING → ROLLING</text>
+
+        <!-- Compass -->
+        <text x="538" y="358" text-anchor="middle" font-family="Courier New" font-size="8" fill="rgba(0,212,255,0.3)">N↑</text>
+      </svg>
+    </div>
+
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(0,255,136,0.6)"></div>Normal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(255,170,0,0.6)"></div>Elevated</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(255,100,0,0.6)"></div>High</div>
+      <div class="legend-item"><div class="legend-dot" style="background:rgba(255,68,68,0.7)"></div>Critical</div>
+      <div class="legend-item" style="margin-left:auto"><span style="color:var(--accent);font-size:8px">● Sensor</span></div>
+      <div class="legend-item"><span style="color:var(--accent);font-size:8px">📋 Permit Active</span></div>
+    </div>
+
+    <!-- Incident Timeline -->
+    <div class="timeline-wrap">
+      <div class="timeline-label">INCIDENT TIMELINE — VIZAG STEEL 2021 SCENARIO</div>
+      <div class="timeline-bar">
+        <div class="tl-seg tl-normal">T-60→T-47: NORMAL</div>
+        <div class="tl-seg tl-compound">T-47: COMPOUND DETECTED</div>
+        <div class="tl-seg tl-trad">T-30: SINGLE SENSOR ALARM</div>
+        <div class="tl-seg tl-blast">T-0: EXPLOSION</div>
+        <div class="timeline-marker" id="timelineMarker" style="left:0%"></div>
+      </div>
+      <div class="tl-labels">
+        <span>T-60 min</span>
+        <span id="tlCurrentLabel" style="color:var(--accent);font-weight:bold">▲ YOU ARE HERE</span>
+        <span>T-0 (Explosion)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: COMPOUND RISK -->
+  <div class="panel right-panel" id="rightPanel">
+    <div class="scan-line"></div>
+    <div class="panel-header">
+      <div class="panel-title">COMPOUND RISK ENGINE</div>
+      <div class="panel-subtitle risk-subtitle">VIZAG SAFETY INTELLIGENCE · MULTI-FACTOR FUSION</div>
+    </div>
+    <div class="panel-body">
+
+      <!-- Risk Score Arc Gauge -->
+      <div class="risk-gauge-wrap">
+        <div class="risk-arc-container">
+          <svg viewBox="0 0 160 90" id="riskArcSvg">
+            <!-- Background arc -->
+            <path d="M 15 80 A 65 65 0 0 1 145 80" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="12" stroke-linecap="round"/>
+            <!-- Risk arc -->
+            <path id="riskArcPath" d="M 15 80 A 65 65 0 0 1 145 80" fill="none" stroke="var(--normal)" stroke-width="12" stroke-linecap="round"
+                  stroke-dasharray="204" stroke-dashoffset="174"/>
+            <!-- Tick marks -->
+            <g stroke="rgba(255,255,255,0.15)" stroke-width="1">
+              <line x1="80" y1="15" x2="80" y2="22"/>
+              <line x1="26" y1="50" x2="32" y2="53"/>
+              <line x1="134" y1="50" x2="128" y2="53"/>
+            </g>
+            <text x="12" y="86" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.3)">0</text>
+            <text x="143" y="86" font-family="Courier New" font-size="8" fill="rgba(255,255,255,0.3)">100</text>
+          </svg>
+          <div class="risk-score-text">
+            <div class="risk-score-num" id="riskScoreNum">24</div>
+            <div class="risk-score-pct">RISK SCORE</div>
+          </div>
+        </div>
+        <div class="risk-badge" id="riskBadge">NORMAL</div>
+      </div>
+
+      <!-- Triggered Rules -->
+      <div>
+        <div class="section-label">TRIGGERED COMPOUND RULES</div>
+        <div id="rulesContainer">
+          <div class="rule-item">
+            <span class="rule-sev sev-medium">MED</span>
+            <div class="rule-text">
+              Shift handover overlap with permit active
+              <span class="rule-code">OISD-116 §4.3 — Permit-to-Work Management</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Why This Matters -->
+      <div class="why-box" id="whyBox">
+        <div class="why-title">◉ COMPOUND ANALYSIS</div>
+        <div class="why-detail" id="whyDetail">
+          Monitoring 5 sensor streams + 3 operational context feeds.<br>
+          No critical compound conditions detected.<br>
+          All parameters within normal operational bounds.
+        </div>
+      </div>
+
+      <!-- OISD Citation -->
+      <div class="oisd-box">
+        <div class="oisd-label">OISD REGULATORY REFERENCE</div>
+        <div class="oisd-text" id="oisdText">
+          "No single unsafe condition shall be considered in isolation. The combined effect of multiple simultaneously active hazardous conditions shall be assessed using compound risk methodology."
+        </div>
+        <div class="oisd-ref" id="oisdRef">— OISD-116 §7.2 · Compound Hazard Assessment</div>
+      </div>
+
+      <!-- RAG Query -->
+      <div class="rag-box">
+        <div class="rag-label">REGULATORY QUERY ENGINE (RAG)</div>
+        <div class="rag-input-row">
+          <input type="text" class="rag-input" id="ragInput"
+                 placeholder="Ask: What does OISD say about H2S + hot work?" />
+          <button class="rag-btn" onclick="queryRAG()">ASK AI</button>
+        </div>
+        <div class="rag-answer" id="ragAnswer"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+  <button class="play-btn btn-normal" onclick="playNormal()">▶ NORMAL OPERATIONS</button>
+  <button class="play-btn btn-vizag" onclick="playVizag()">⚠ REPLAY VIZAG INCIDENT</button>
+  <div class="mode-indicator">
+    MODE: <span class="mode-text" id="modeText">INITIALIZING</span>
+    &nbsp;|&nbsp; ZONE C RISK: <span id="footerRisk" style="color:var(--normal)">LOW</span>
+  </div>
+  <div class="bottom-right">
+    <span id="footerTime">2026-06-28 00:00:00</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- JAVASCRIPT -->
+<!-- ============================================================ -->
+<script>
+'use strict';
+
+// ─── STATE ───────────────────────────────────────────────────────
+let ws = null;
+let wsRetryCount = 0;
+let currentMode = 'normal';
+let compoundDetectedBeforeTraditional = false;
+let currentRiskLevel = 'normal';
+let vizagPlaybackTimer = null;
+let vizagStep = 0;
+let vizagInterval = null;
+let zoneUpdateInterval = null;
+
+// Simulated sensor state
+const sensorState = {
+  h2s: 12.3, co: 18.7, pressure: 102.4, temp: 68.2, vibration: 0.42,
+  compound_risk: 0.24, risk_level: 'normal', minutes_to_explosion: -60,
+  compound_detects_before_traditional: false,
+  traditional_alarm: false
+};
+
+// Vizag incident scenario steps (T-60 to T-0)
+const vizagScenario = [
+  // step: { minutesToExplosion, sensors, risk, risk_level, msg, compound_before_trad, trad_alarm }
+  { t: -60, h2s: 8.2,  co: 14.1, pressure: 100.2, temp: 65.1, vibration: 0.38, risk: 0.12, level: 'normal', trad: false, compound: false },
+  { t: -55, h2s: 9.1,  co: 15.3, pressure: 100.8, temp: 65.8, vibration: 0.40, risk: 0.15, level: 'normal', trad: false, compound: false },
+  { t: -50, h2s: 11.2, co: 17.4, pressure: 101.5, temp: 67.2, vibration: 0.42, risk: 0.21, level: 'normal', trad: false, compound: false },
+  { t: -47, h2s: 14.8, co: 22.1, pressure: 103.1, temp: 69.8, vibration: 0.48, risk: 0.58, level: 'elevated', trad: false, compound: false },
+  { t: -44, h2s: 18.3, co: 26.7, pressure: 104.4, temp: 71.4, vibration: 0.55, risk: 0.71, level: 'critical', trad: false, compound: true },
+  { t: -40, h2s: 22.7, co: 31.2, pressure: 105.8, temp: 73.2, vibration: 0.61, risk: 0.79, level: 'critical', trad: false, compound: true },
+  { t: -35, h2s: 29.4, co: 37.8, pressure: 107.2, temp: 75.9, vibration: 0.72, risk: 0.84, level: 'critical', trad: false, compound: true },
+  { t: -30, h2s: 52.1, co: 51.3, pressure: 109.1, temp: 78.6, vibration: 0.89, risk: 0.92, level: 'critical', trad: true,  compound: true },
+  { t: -20, h2s: 68.4, co: 72.1, pressure: 111.4, temp: 83.2, vibration: 1.21, risk: 0.97, level: 'critical', trad: true,  compound: true },
+  { t: -10, h2s: 84.2, co: 91.8, pressure: 113.8, temp: 88.9, vibration: 1.68, risk: 0.99, level: 'critical', trad: true,  compound: true },
+  { t: 0,   h2s: 120.4, co: 145.2, pressure: 118.2, temp: 94.1, vibration: 3.42, risk: 1.0, level: 'critical', trad: true, compound: true },
+];
+
+// Normal scenario (peaceful operations)
+const normalScenario = [
+  { h2s: 8.1, co: 12.4, pressure: 100.1, temp: 64.2, vibration: 0.35, risk: 0.08, level: 'normal' },
+  { h2s: 9.2, co: 13.1, pressure: 100.4, temp: 64.8, vibration: 0.37, risk: 0.10, level: 'normal' },
+  { h2s: 7.8, co: 11.9, pressure: 99.8,  temp: 63.9, vibration: 0.36, risk: 0.09, level: 'normal' },
+  { h2s: 10.1, co: 14.8, pressure: 101.2, temp: 66.1, vibration: 0.40, risk: 0.12, level: 'normal' },
+];
+
+// ─── INIT ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  connectWebSocket();
+  startZonePolling();
+
+  // Auto-play Vizag incident after 2s
+  setTimeout(() => {
+    playVizag();
+  }, 2000);
+});
+
+// ─── CLOCK ───────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const ts = now.toISOString().replace('T', ' ').substring(0, 19);
+  document.getElementById('headerTime').textContent = ts;
+  document.getElementById('footerTime').textContent = ts;
+}
+
+// ─── WEBSOCKET ───────────────────────────────────────────────────
+function connectWebSocket() {
+  try {
+    const wsPort = window.location.port || 8001;
+    ws = new WebSocket(`ws://${window.location.hostname}:${wsPort}/ws/sensors`);
+
+    ws.onopen = () => {
+      setWsStatus(true);
+      wsRetryCount = 0;
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleWSMessage(data);
+      } catch(e) {
+        console.warn('WS parse error:', e);
+      }
+    };
+
+    ws.onerror = () => setWsStatus(false);
+
+    ws.onclose = () => {
+      setWsStatus(false);
+      wsRetryCount++;
+      const delay = Math.min(30000, 2000 * wsRetryCount);
+      setTimeout(connectWebSocket, delay);
+    };
+  } catch(e) {
+    setWsStatus(false);
+    setTimeout(connectWebSocket, 5000);
+  }
+}
+
+function setWsStatus(connected) {
+  const dot = document.getElementById('wsDot');
+  const label = document.getElementById('wsLabel');
+  if (connected) {
+    dot.className = 'ws-dot';
+    label.textContent = 'WS CONNECTED';
+    label.style.color = 'var(--normal)';
+  } else {
+    dot.className = 'ws-dot disconnected';
+    label.textContent = 'DEMO MODE (WS offline)';
+    label.style.color = 'var(--text-dim)';
+  }
+}
+
+function handleWSMessage(data) {
+  if (data.sensors) updateSensors(data.sensors);
+  if (data.assessment) updateRiskPanel(data.assessment);
+  if (data.zones) updateZones(data.zones);
+  if (data.minutes_to_explosion !== undefined) updateTimeline(data.minutes_to_explosion);
+}
+
+// ─── SENSOR UPDATE ───────────────────────────────────────────────
+function updateSensors(data) {
+  const MAX = { h2s: 80, co: 100, pressure: 120, temp: 100, vibration: 2.5 };
+  const THRESH = { h2s: 50, co: 50, pressure: 110, temp: 90, vibration: 2.0 };
+  const THRESH_PCT = {
+    h2s: THRESH.h2s / MAX.h2s * 100,
+    co: THRESH.co / MAX.co * 100,
+    pressure: THRESH.pressure / MAX.pressure * 100,
+    temp: THRESH.temp / MAX.temp * 100,
+    vibration: THRESH.vibration / MAX.vibration * 100
+  };
+
+  setSensor('h2s', data.h2s, MAX.h2s, THRESH.h2s, THRESH_PCT.h2s, 1);
+  setSensor('co', data.co, MAX.co, THRESH.co, THRESH_PCT.co, 1);
+  setSensor('press', data.pressure, MAX.pressure, THRESH.pressure, THRESH_PCT.pressure, 1);
+  setSensor('temp', data.temp, MAX.temp, THRESH.temp, THRESH_PCT.temp, 1);
+  setSensor('vib', data.vibration, MAX.vibration, THRESH.vibration, THRESH_PCT.vibration, 2);
+
+  // Traditional alarm logic
+  const anyAlarm = data.h2s > 50 || data.co > 50 || data.pressure > 110 || data.temp > 90 || data.vibration > 2.0;
+  updateTradAlarm(anyAlarm, data);
+}
+
+function setSensor(id, val, max, thresh, threshPct, decimals) {
+  const pct = Math.min(100, (val / max) * 100);
+  const isWarn = val > thresh * 0.75 && val <= thresh;
+  const isCrit = val > thresh;
+  const cls = isCrit ? 'crit' : (isWarn ? 'warn' : '');
+  const valEl = document.getElementById(id + '-val');
+  const barEl = document.getElementById(id + '-bar');
+  if (valEl) {
+    valEl.textContent = val.toFixed(decimals);
+    valEl.className = 'sensor-value ' + cls;
+  }
+  if (barEl) {
+    barEl.style.width = pct.toFixed(1) + '%';
+    barEl.className = 'gauge-bar ' + cls;
+  }
+}
+
+function updateTradAlarm(anyAlarm, data) {
+  const alarmEl = document.getElementById('tradAlarm');
+  const msgEl = document.getElementById('tradAlarmMsg');
+  const contrastBox = document.getElementById('contrastBox');
+
+  if (anyAlarm) {
+    alarmEl.className = 'trad-alarm alarm-active';
+    let alarmTrigger = '';
+    if (data.h2s > 50)  alarmTrigger = `H₂S > 50ppm (${data.h2s.toFixed(1)})`;
+    else if (data.co > 50) alarmTrigger = `CO > 50ppm (${data.co.toFixed(1)})`;
+    else if (data.pressure > 110) alarmTrigger = `PRESSURE > 110kPa`;
+    else if (data.temp > 90) alarmTrigger = `TEMP > 90°C`;
+    else alarmTrigger = `VIBRATION > 2.0m/s²`;
+    msgEl.textContent = '⚠ ALARM: ' + alarmTrigger;
+    msgEl.className = 'trad-alarm-msg alert-msg';
+  } else {
+    alarmEl.className = 'trad-alarm no-alarm';
+    msgEl.textContent = '✓ No Alarm';
+    msgEl.className = 'trad-alarm-msg';
+  }
+
+  // Show contrast box only when compound is critical but trad is not
+  if (compoundDetectedBeforeTraditional && !anyAlarm && currentRiskLevel === 'critical') {
+    contrastBox.className = 'contrast-box visible';
+  } else if (anyAlarm) {
+    contrastBox.className = 'contrast-box';
+  }
+}
+
+// ─── RISK PANEL UPDATE ────────────────────────────────────────────
+function updateRiskPanel(assessment) {
+  const score = Math.round((assessment.compound_risk || 0) * 100);
+  const level = (assessment.risk_level || 'normal').toLowerCase();
+  const beforeTrad = assessment.compound_detects_before_traditional || false;
+
+  compoundDetectedBeforeTraditional = beforeTrad;
+  currentRiskLevel = level;
+
+  // Update arc gauge
+  updateRiskArc(score, level);
+
+  // Badge
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = level.toUpperCase();
+  badge.className = 'risk-badge ' + (level === 'elevated' ? 'elevated' : level === 'high' ? 'high' : level === 'critical' ? 'critical' : '');
+
+  // Right panel glow
+  const rightPanel = document.getElementById('rightPanel');
+  if (level === 'critical') {
+    rightPanel.classList.add('critical-glow');
+  } else {
+    rightPanel.classList.remove('critical-glow');
+  }
+
+  // Score color
+  const scoreNum = document.getElementById('riskScoreNum');
+  scoreNum.textContent = score;
+  if (level === 'critical') scoreNum.style.color = 'var(--critical)';
+  else if (level === 'high') scoreNum.style.color = '#ff6600';
+  else if (level === 'elevated') scoreNum.style.color = 'var(--warning)';
+  else scoreNum.style.color = 'var(--normal)';
+
+  // Rules
+  updateTriggeredRules(assessment, score);
+
+  // Why box
+  updateWhyBox(assessment, level);
+
+  // Alert banner
+  if (level === 'critical' && beforeTrad) {
+    showAlert('⚠ COMPOUND RISK CRITICAL — COKE OVEN BATTERY ZONE C — 47 MINUTES BEFORE TRADITIONAL ALARM ⚠');
+  } else if (level !== 'critical') {
+    hideAlert();
+  }
+
+  // Footer
+  document.getElementById('footerRisk').textContent = level.toUpperCase();
+  document.getElementById('footerRisk').style.color =
+    level === 'critical' ? 'var(--critical)' :
+    level === 'high' ? '#ff6600' :
+    level === 'elevated' ? 'var(--warning)' : 'var(--normal)';
+}
+
+function updateRiskArc(score, level) {
+  const arcPath = document.getElementById('riskArcPath');
+  const totalLen = 204;
+  const filled = (score / 100) * totalLen;
+  const offset = totalLen - filled;
+  arcPath.setAttribute('stroke-dashoffset', offset.toFixed(1));
+  const color = level === 'critical' ? '#ff4444' :
+                level === 'high' ? '#ff6600' :
+                level === 'elevated' ? '#ffaa00' : '#00ff88';
+  arcPath.setAttribute('stroke', color);
+}
+
+function updateTriggeredRules(assessment, score) {
+  const container = document.getElementById('rulesContainer');
+  const rules = [];
+
+  if (score > 20) rules.push({ sev: 'medium', text: 'Shift handover overlap with active work permit', code: 'OISD-116 §4.3' });
+  if (score > 40) rules.push({ sev: 'high',   text: 'H₂S + Confined Space Entry + Hot Work simultaneously active', code: 'OISD-116 §7.2 · OISD-GDN-192 §3.1' });
+  if (score > 55) rules.push({ sev: 'high',   text: 'Elevated temp trend (>2°C/min) during PTW window', code: 'OISD-116 §6.1.4' });
+  if (score > 65) rules.push({ sev: 'critical', text: 'Multi-gas elevation: H₂S + CO simultaneous rise pattern', code: 'OISD-GDN-192 §4.2 · Rule R-007' });
+  if (score > 75) rules.push({ sev: 'critical', text: 'Compound condition: H₂S rising + Hot Work PTW-2025-0847 + Confined Space + Shift Handover IN PROGRESS', code: 'COMPOUND RULE R-012 (Critical)' });
+  if (score > 85) rules.push({ sev: 'critical', text: 'Pressure transient + vibration signature: precursor to structural event', code: 'OISD-116 §8.3 · Hazop Deviation D-14' });
+
+  if (rules.length === 0) {
+    rules.push({ sev: 'medium', text: 'Shift handover overlap with active work permit', code: 'OISD-116 §4.3 — Permit-to-Work Management' });
+  }
+
+  container.innerHTML = rules.map(r => `
+    <div class="rule-item ${r.sev !== 'medium' ? 'active-rule' : ''}">
+      <span class="rule-sev sev-${r.sev}">${r.sev.toUpperCase()}</span>
+      <div class="rule-text">
+        ${r.text}
+        <span class="rule-code">${r.code}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateWhyBox(assessment, level) {
+  const box = document.getElementById('whyBox');
+  const detail = document.getElementById('whyDetail');
+  const sensors = assessment.sensors || {};
+  const h2s = (sensors.h2s || sensorState.h2s).toFixed(1);
+  const co  = (sensors.co  || sensorState.co).toFixed(1);
+
+  if (level === 'critical' && assessment.compound_detects_before_traditional) {
+    box.className = 'why-box critical-box';
+    detail.innerHTML = `
+      <span style="color:var(--critical);font-weight:bold">⚠ COMPOUND CONDITION DETECTED</span><br>
+      <br>
+      <span class="why-value">H₂S: ${h2s}ppm</span> <span style="color:var(--text-dim)">(below 50ppm alarm threshold)</span><br>
+      + <span class="why-permit">Hot Work Permit PTW-2025-0847: ACTIVE</span><br>
+      + <span class="why-permit">Confined Space Entry: ACTIVE</span><br>
+      + <span style="color:var(--warning)">Shift Handover: IN PROGRESS</span><br>
+      <div class="why-sep"></div>
+      <div class="why-compare">
+        <div class="compare-cell bad">
+          <div class="cv-sys">SINGLE SENSOR</div>
+          <div class="cv-res">✗ NO ALARM</div>
+        </div>
+        <div class="compare-cell good">
+          <div class="cv-sys">COMPOUND AI</div>
+          <div class="cv-res">✓ CRITICAL</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:9px;color:var(--text-dim)">
+        Detecting <span style="color:var(--warning);font-weight:bold">17 minutes</span> before traditional alarm<br>
+        <span style="color:var(--critical);font-weight:bold">47 minutes</span> before explosion
+      </div>
+    `;
+  } else if (level === 'elevated' || level === 'high') {
+    box.className = 'why-box';
+    detail.innerHTML = `
+      <span style="color:var(--warning);font-weight:bold">◈ ELEVATED COMPOUND RISK</span><br>
+      <br>
+      H₂S: <span class="why-value">${h2s}ppm</span> — rising trend detected<br>
+      CO: <span class="why-value">${co}ppm</span> — within threshold, trending up<br>
+      Active permits create compounding context.<br>
+      <br>
+      <span style="color:var(--text-dim);font-size:9px">Monitoring intensified. Recommend supervisor review.</span>
+    `;
+  } else {
+    box.className = 'why-box';
+    detail.innerHTML = `
+      Monitoring 5 sensor streams + 3 operational context feeds.<br>
+      No critical compound conditions detected.<br>
+      All parameters within normal operational bounds.
+    `;
+  }
+
+  // Update OISD box
+  if (level === 'critical') {
+    document.getElementById('oisdText').innerHTML =
+      '"When H₂S or toxic gas concentrations exceed 10% of LEL in a confined space during active hot work permits, immediate evacuation protocol SHALL be initiated, irrespective of individual sensor alarm status."';
+    document.getElementById('oisdRef').textContent = '— OISD-116 §7.4.2 · GDN-192 §3.1 · Factory Act 1948 §41-B';
+  } else {
+    document.getElementById('oisdText').innerHTML =
+      '"No single unsafe condition shall be considered in isolation. The combined effect of multiple simultaneously active hazardous conditions shall be assessed using compound risk methodology."';
+    document.getElementById('oisdRef').textContent = '— OISD-116 §7.2 · Compound Hazard Assessment';
+  }
+}
+
+// ─── ZONE UPDATE ─────────────────────────────────────────────────
+function updateZones(zones) {
+  const colorMap = {
+    normal: { fill: 'rgba(0,255,136,0.15)', stroke: 'rgba(0,255,136,0.5)', label: '◉ NORMAL', labelColor: 'rgba(0,255,136,0.7)' },
+    elevated: { fill: 'rgba(255,170,0,0.12)', stroke: 'rgba(255,170,0,0.5)', label: '◈ ELEVATED', labelColor: 'rgba(255,170,0,0.8)' },
+    high: { fill: 'rgba(255,100,0,0.18)', stroke: 'rgba(255,100,0,0.6)', label: '◆ HIGH', labelColor: 'rgba(255,100,0,0.9)' },
+    critical: { fill: 'rgba(255,68,68,0.25)', stroke: 'rgba(255,68,68,0.8)', label: '⚡ CRITICAL', labelColor: 'rgba(255,68,68,1)' }
+  };
+
+  Object.entries(zones).forEach(([zone, info]) => {
+    const id = 'zone' + zone.toUpperCase();
+    const el = document.getElementById(id);
+    const statusEl = document.getElementById(id.toLowerCase() + '-status') ||
+                     document.getElementById('zone' + zone.toLowerCase() + '-status');
+    const level = (info.risk_level || 'normal').toLowerCase();
+    const cm = colorMap[level] || colorMap.normal;
+
+    if (el) {
+      el.setAttribute('fill', cm.fill);
+      el.setAttribute('stroke', cm.stroke);
+      if (zone.toUpperCase() === 'C' && level === 'critical') {
+        el.classList.add('zone-c-pulse');
+      } else {
+        el.classList.remove('zone-c-pulse');
+      }
+    }
+    if (statusEl) {
+      const label = zone.toUpperCase() === 'C' && level === 'critical'
+        ? '⚡ COMPOUND RISK: CRITICAL'
+        : cm.label;
+      statusEl.textContent = label;
+      statusEl.setAttribute('fill', cm.labelColor);
+    }
+  });
+}
+
+function startZonePolling() {
+  const fetchZones = () => {
+    fetch('/api/plant_zones')
+      .then(r => r.json())
+      .then(data => { if (data.zones) updateZones(data.zones); })
+      .catch(() => {}); // Silently fail — server may not be running
+  };
+  zoneUpdateInterval = setInterval(fetchZones, 2000);
+}
+
+// ─── TIMELINE UPDATE ─────────────────────────────────────────────
+function updateTimeline(minutesToExplosion) {
+  // T ranges from -60 to 0
+  // Timeline bar: -60 to 0 = 60 minutes total
+  const marker = document.getElementById('timelineMarker');
+  const label = document.getElementById('tlCurrentLabel');
+
+  const t = Math.max(-60, Math.min(0, minutesToExplosion));
+  const pct = ((t - (-60)) / 60) * 100;
+  marker.style.left = pct.toFixed(1) + '%';
+
+  if (t <= -47 && t > -30) {
+    label.textContent = `▲ T${t}: COMPOUND DETECTED`;
+    label.style.color = 'var(--warning)';
+  } else if (t <= -30 && t > 0) {
+    label.textContent = `▲ T${t}: SINGLE SENSOR ALARM`;
+    label.style.color = '#ff6600';
+  } else if (t === 0) {
+    label.textContent = '▲ T-0: EXPLOSION';
+    label.style.color = 'var(--critical)';
+  } else {
+    label.textContent = `▲ T${t}: NORMAL OPS`;
+    label.style.color = 'var(--accent)';
+  }
+}
+
+// ─── ALERT ───────────────────────────────────────────────────────
+function showAlert(message) {
+  const banner = document.getElementById('alertBanner');
+  banner.textContent = message;
+  banner.classList.add('active');
+}
+
+function hideAlert() {
+  document.getElementById('alertBanner').classList.remove('active');
+}
+
+// ─── PLAYBACK — VIZAG ────────────────────────────────────────────
+function playVizag() {
+  currentMode = 'vizag';
+  document.getElementById('modeText').textContent = 'VIZAG INCIDENT REPLAY';
+  document.getElementById('modeText').style.color = 'var(--critical)';
+
+  // Reset
+  vizagStep = 0;
+  if (vizagInterval) clearInterval(vizagInterval);
+  hideAlert();
+  document.getElementById('rightPanel').classList.remove('critical-glow');
+  document.getElementById('contrastBox').className = 'contrast-box';
+
+  vizagInterval = setInterval(stepVizag, 2200);
+  stepVizag(); // immediate first step
+}
+
+function stepVizag() {
+  if (vizagStep >= vizagScenario.length) {
+    clearInterval(vizagInterval);
+    document.getElementById('modeText').textContent = 'VIZAG INCIDENT — COMPLETE';
+    return;
+  }
+
+  const s = vizagScenario[vizagStep];
+
+  const sensorData = {
+    h2s: s.h2s, co: s.co, pressure: s.pressure, temp: s.temp, vibration: s.vibration
+  };
+
+  const assessment = {
+    compound_risk: s.risk,
+    risk_level: s.level,
+    compound_detects_before_traditional: s.compound,
+    sensors: sensorData
+  };
+
+  compoundDetectedBeforeTraditional = s.compound;
+  currentRiskLevel = s.level;
+
+  updateSensors(sensorData);
+  updateRiskPanel(assessment);
+  updateTimeline(s.t);
+
+  // Simulate zone updates
+  const zoneLevel = s.level;
+  const zoneData = {
+    A: { risk_level: 'normal' },
+    B: { risk_level: 'normal' },
+    C: { risk_level: zoneLevel },
+    D: { risk_level: 'normal' },
+    E: { risk_level: s.risk > 0.4 ? 'elevated' : 'normal' },
+    F: { risk_level: 'normal' }
+  };
+  updateZones(zoneData);
+
+  // Show contrast box on critical + compound detected before trad
+  if (s.compound && !s.trad) {
+    document.getElementById('contrastBox').className = 'contrast-box visible';
+  } else if (s.trad) {
+    // Both systems now alarming
+    document.getElementById('contrastBox').className = 'contrast-box';
+    document.getElementById('tradAlarm').className = 'trad-alarm alarm-active';
+    document.getElementById('tradAlarmMsg').textContent = `⚠ ALARM: H₂S > 50ppm (${s.h2s.toFixed(1)})`;
+    document.getElementById('tradAlarmMsg').className = 'trad-alarm-msg alert-msg';
+  }
+
+  vizagStep++;
+}
+
+// ─── PLAYBACK — NORMAL ───────────────────────────────────────────
+function playNormal() {
+  currentMode = 'normal';
+  document.getElementById('modeText').textContent = 'NORMAL OPERATIONS';
+  document.getElementById('modeText').style.color = 'var(--normal)';
+
+  if (vizagInterval) clearInterval(vizagInterval);
+  hideAlert();
+  document.getElementById('rightPanel').classList.remove('critical-glow');
+  document.getElementById('contrastBox').className = 'contrast-box';
+  compoundDetectedBeforeTraditional = false;
+  currentRiskLevel = 'normal';
+
+  let step = 0;
+  const runNormal = () => {
+    if (currentMode !== 'normal') return;
+    const s = normalScenario[step % normalScenario.length];
+    const slight = (v, d) => v + (Math.random() - 0.5) * d;
+
+    const sensorData = {
+      h2s: slight(s.h2s, 1.5),
+      co: slight(s.co, 2),
+      pressure: slight(s.pressure, 0.5),
+      temp: slight(s.temp, 0.8),
+      vibration: slight(s.vibration, 0.04)
+    };
+
+    const assessment = {
+      compound_risk: slight(s.risk, 0.02),
+      risk_level: s.level,
+      compound_detects_before_traditional: false,
+      sensors: sensorData
+    };
+
+    updateSensors(sensorData);
+    updateRiskPanel(assessment);
+    updateTimeline(-60);
+    updateZones({ A: { risk_level: 'normal' }, B: { risk_level: 'normal' }, C: { risk_level: 'normal' }, D: { risk_level: 'normal' }, E: { risk_level: 'normal' }, F: { risk_level: 'normal' } });
+
+    step++;
+    if (currentMode === 'normal') setTimeout(runNormal, 2500);
+  };
+
+  runNormal();
+}
+
+// ─── RAG QUERY ───────────────────────────────────────────────────
+function queryRAG() {
+  const input = document.getElementById('ragInput').value.trim();
+  if (!input) return;
+
+  const answerEl = document.getElementById('ragAnswer');
+  answerEl.className = 'rag-answer visible';
+  answerEl.innerHTML = '<span class="rag-loading">Querying regulatory knowledge base...</span>';
+
+  fetch('/api/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: input })
+  })
+  .then(r => r.json())
+  .then(data => {
+    const answer = data.answer || data.response || data.result || 'No answer returned.';
+    const citations = data.citations || data.sources || [];
+    let html = `<span style="color:var(--text)">${answer}</span>`;
+    if (citations.length > 0) {
+      html += '<br><br><span style="color:var(--accent);font-size:8px">CITATIONS: ' + citations.join(' · ') + '</span>';
+    }
+    answerEl.innerHTML = html;
+  })
+  .catch(() => {
+    // Demo mode fallback answers
+    const demos = {
+      'h2s': `OISD-116 §7.4.2: H₂S exposure in confined spaces triggers mandatory evacuation at 10ppm (STEL). Hot work permits within 50m of H₂S sources must include continuous gas monitoring. Combined H₂S + CO elevation is a Class-A compound hazard.\n\n— OISD-116 §7.4, GDN-192 §3.1`,
+      'hot work': `OISD-116 §4.3: Hot Work Permit (PTW) requires gas testing every 30 minutes. If atmospheric conditions change, permit must be suspended. Overlap with shift handover is a critical compound condition — permit must be formally transferred.\n\n— OISD-116 §4.3.2`,
+      'confined': `OISD-GDN-192 §3.1: Confined space entry requires continuous atmospheric monitoring for O₂, LEL, H₂S, CO. Entry must cease if any parameter degrades >20% toward alarm threshold. Compound rule: confined space + hot work = mandatory standby rescue team.\n\n— OISD-GDN-192 §3.1, §4.2`,
+      'compound': `OISD-116 §7.2: Compound hazard assessment mandates evaluation of simultaneous operational conditions. Single-sensor thresholds are insufficient — contextual factors (permits, shift changes, confined spaces) must be included in risk evaluation.\n\n— OISD-116 §7.2, OISD-118 §2.4`
+    };
+    const q = input.toLowerCase();
+    let answer = 'Based on OISD-116 and GDN-192: This query relates to compound risk assessment under Indian petroleum safety regulations. The Vizag Steel incident demonstrates that isolated sensor readings without operational context led to delayed emergency response.';
+    for (const [key, val] of Object.entries(demos)) {
+      if (q.includes(key)) { answer = val; break; }
+    }
+    answerEl.innerHTML = `<span style="color:var(--text)">${answer.replace(/\n/g, '<br>')}</span><br><br><span style="color:var(--text-dim);font-size:8px">[DEMO MODE — server offline]</span>`;
+  });
+}
+
+// Enter key on RAG input
+document.addEventListener('DOMContentLoaded', () => {
+  const ri = document.getElementById('ragInput');
+  if (ri) ri.addEventListener('keydown', e => { if (e.key === 'Enter') queryRAG(); });
+});
+</script>
+</body>
+</html>

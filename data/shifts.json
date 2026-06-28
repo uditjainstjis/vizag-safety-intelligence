@@ -1,0 +1,11 @@
+{
+  "current_shift": "B",
+  "shift_start": "2025-01-18 14:00:00",
+  "shift_end": "2025-01-18 22:00:00",
+  "previous_shift": "A",
+  "handover_start": "2025-01-18 14:00:00",
+  "handover_end": "2025-01-18 14:30:00",
+  "handover_complete": false,
+  "zone_C_handover_briefing_done": false,
+  "note": "Shift A did not verbally brief Shift B about elevated H2S readings in Zone C battery compartments 6-7"
+}
