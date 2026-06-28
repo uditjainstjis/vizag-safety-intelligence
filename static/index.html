@@ -1415,8 +1415,7 @@ const normalScenario = [
 document.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 1000);
-  connectWebSocket();
-  startZonePolling();
+  setWsStatus(true);  // client-side playback — always live
 
   // Auto-play Vizag incident after 2s
   setTimeout(() => {
@@ -1471,11 +1470,11 @@ function setWsStatus(connected) {
   const label = document.getElementById('wsLabel');
   if (connected) {
     dot.className = 'ws-dot';
-    label.textContent = 'WS CONNECTED';
+    label.textContent = 'LIVE';
     label.style.color = 'var(--normal)';
   } else {
     dot.className = 'ws-dot disconnected';
-    label.textContent = 'DEMO MODE (WS offline)';
+    label.textContent = 'RECONNECTING';
     label.style.color = 'var(--text-dim)';
   }
 }
@@ -1562,6 +1561,7 @@ function updateRiskPanel(assessment) {
   const level = (assessment.risk_level || 'normal').toLowerCase();
   const beforeTrad = assessment.compound_detects_before_traditional || false;
 
+  _currentRiskScore = (assessment.compound_risk || 0);
   compoundDetectedBeforeTraditional = beforeTrad;
   currentRiskLevel = level;
 
@@ -1748,12 +1748,13 @@ function updateZones(zones) {
   });
 }
 
+let _currentRiskScore = 0;
 function startZonePolling() {
   const fetchZones = () => {
-    fetch('/api/plant_zones')
+    fetch(`/api/plant_zones?risk_score=${_currentRiskScore.toFixed(3)}`)
       .then(r => r.json())
       .then(data => { if (data.zones) updateZones(data.zones); })
-      .catch(() => {}); // Silently fail — server may not be running
+      .catch(() => {});
   };
   zoneUpdateInterval = setInterval(fetchZones, 2000);
 }

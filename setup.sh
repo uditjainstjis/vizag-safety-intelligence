@@ -9,8 +9,8 @@ echo ""
 
 cd ~/Desktop/vizag_safety
 
-echo "[1/4] Installing dependencies..."
-pip install -r requirements.txt -q
+echo "[1/4] Installing dependencies (no GPU/cloud APIs required)..."
+pip3 install -r requirements.txt -q
 
 echo "[2/4] Generating Vizag incident simulation data..."
 python3 generate_data.py
